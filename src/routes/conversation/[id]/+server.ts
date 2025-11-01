@@ -185,9 +185,58 @@ export async function POST({ request, locals, params, getClientAddress }) {
 		error(413, "File too large, should be <10MB");
 	}
 
-	const uploadedFiles = await Promise.all(b64Files.map((file) => uploadFile(file, conv))).then(
+	// RAGRefine 데이터셋 파일 감지 및 업로드
+	const { uploadDatasetToRAGRefine, isDatasetFile, isDatasetMimeType } = await import(
+		"$lib/server/files/uploadDatasetToRAGRefine"
+	);
+	
+	const datasetFiles = b64Files.filter(
+		(file) => isDatasetFile(file) || isDatasetMimeType(file.type)
+	);
+	const regularFiles = b64Files.filter(
+		(file) => !isDatasetFile(file) && !isDatasetMimeType(file.type)
+	);
+	
+	// 데이터셋 파일을 RAGRefine API에 업로드
+	const datasetUploadResults = await Promise.all(
+		datasetFiles.map((file) => uploadDatasetToRAGRefine(file))
+	);
+	
+	// 일반 파일은 MongoDB에 업로드
+	const uploadedFiles = await Promise.all(regularFiles.map((file) => uploadFile(file, conv))).then(
 		(files) => [...files, ...hashFiles]
 	);
+	
+	// 데이터셋 업로드 결과 처리 (성공한 경우 사용자에게 알림)
+	const successfulUploads = datasetUploadResults.filter((result) => result.success);
+	const failedUploads = datasetUploadResults.filter((result) => !result.success);
+	
+	// 데이터셋 업로드 성공 시 사용자 메시지에 정보 추가
+	if (successfulUploads.length > 0 || failedUploads.length > 0) {
+		let datasetUploadMessage = "";
+		
+		if (successfulUploads.length > 0) {
+			const uploadInfo = successfulUploads
+				.map((result) => `- ${result.filename} (${(result.size / 1024).toFixed(1)}KB) → ${result.path}`)
+				.join("\n");
+			datasetUploadMessage += `\n\n📊 데이터셋 파일이 RAGRefine에 업로드되었습니다:\n${uploadInfo}\n\n이제 이 데이터셋으로 분석을 진행할 수 있습니다.`;
+		}
+		
+		if (failedUploads.length > 0) {
+			const errorInfo = failedUploads
+				.map((result) => `- ${result.filename}: ${result.error || "알 수 없는 오류"}`)
+				.join("\n");
+			datasetUploadMessage += `\n\n⚠️ 다음 파일 업로드에 실패했습니다:\n${errorInfo}`;
+		}
+		
+		// 사용자 메시지 내용에 데이터셋 업로드 정보 추가
+		if (newPrompt) {
+			newPrompt += datasetUploadMessage;
+		} else if (successfulUploads.length > 0) {
+			// 파일만 업로드한 경우 기본 메시지 생성
+			newPrompt = `데이터셋 파일을 업로드했습니다.${datasetUploadMessage}`;
+		}
+	}
 
 	// we will append tokens to the content of this message
 	let messageToWriteToId: Message["id"] | undefined = undefined;

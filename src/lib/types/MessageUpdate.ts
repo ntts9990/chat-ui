@@ -7,7 +7,9 @@ export type MessageUpdate =
 	| MessageFileUpdate
 	| MessageFinalAnswerUpdate
 	| MessageReasoningUpdate
-	| MessageRouterMetadataUpdate;
+	| MessageRouterMetadataUpdate
+	| MessageActiveAnalysisUpdate
+	| MessageApprovalRequestUpdate;
 
 export enum MessageUpdateType {
 	Status = "status",
@@ -17,6 +19,8 @@ export enum MessageUpdateType {
 	FinalAnswer = "finalAnswer",
 	Reasoning = "reasoning",
 	RouterMetadata = "routerMetadata",
+	ActiveAnalysis = "activeAnalysis",
+	ApprovalRequest = "approvalRequest",
 }
 
 // Status
@@ -77,4 +81,29 @@ export interface MessageRouterMetadataUpdate {
 	route: string;
 	model: string;
 	provider?: InferenceProvider;
+}
+
+// RAGRefine Active Analysis Update
+export interface MessageActiveAnalysisUpdate {
+	type: MessageUpdateType.ActiveAnalysis;
+	activeAnalysis: {
+		tool_name: string;
+		tool_display_name?: string;
+		dataset_path: string;
+		status: "executing" | "completed" | "failed";
+		started_at?: string | null;
+		results?: any;
+	} | null;
+}
+
+// RAGRefine Approval Request Update
+export interface MessageApprovalRequestUpdate {
+	type: MessageUpdateType.ApprovalRequest;
+	tool_name: string;
+	tool_display_name: string;
+	tool_args: Record<string, any>;
+	dataset_path: string;
+	estimated_time?: string;
+	question?: string;
+	extras?: Record<string, any>;
 }

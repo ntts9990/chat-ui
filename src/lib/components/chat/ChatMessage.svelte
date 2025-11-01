@@ -16,6 +16,8 @@
 	import OpenReasoningResults from "./OpenReasoningResults.svelte";
 	import Alternatives from "./Alternatives.svelte";
 	import MessageAvatar from "./MessageAvatar.svelte";
+	import ActiveAnalysisBadge from "./ActiveAnalysisBadge.svelte";
+	import ExecutionPlanDisplay from "./ExecutionPlanDisplay.svelte";
 	import { PROVIDERS_HUB_ORGS } from "@huggingface/inference";
 	import { requireAuthUser } from "$lib/utils/auth";
 
@@ -72,9 +74,23 @@
 	const THINK_BLOCK_REGEX = /(<think>[\s\S]*?(?:<\/think>|$))/gi;
 	let hasClientThink = $derived(message.content.split(THINK_BLOCK_REGEX).length > 1);
 
-	// Strip think blocks for clipboard copy (always, regardless of detection)
+	// Execution plan extraction
+	const EXECUTION_PLAN_REGEX = /<execution_plan>([\s\S]*?)<\/execution_plan>/gi;
+	let executionPlanData = $derived.by(() => {
+		const match = EXECUTION_PLAN_REGEX.exec(message.content);
+		if (match && match[1]) {
+			try {
+				return JSON.parse(match[1]);
+			} catch {
+				return null;
+			}
+		}
+		return null;
+	});
+
+	// Strip think blocks and execution plan for clipboard copy
 	let contentWithoutThink = $derived.by(() =>
-		message.content.replace(THINK_BLOCK_REGEX, "").trim()
+		message.content.replace(THINK_BLOCK_REGEX, "").replace(EXECUTION_PLAN_REGEX, "").trim()
 	);
 
 	$effect(() => {
@@ -117,6 +133,22 @@
 		<div
 			class="relative flex min-w-[60px] flex-col gap-2 break-words rounded-2xl border border-gray-100 bg-gradient-to-br from-gray-50 px-5 py-3.5 text-gray-600 prose-pre:my-2 dark:border-gray-800 dark:from-gray-800/80 dark:text-gray-300"
 		>
+			{#if message.activeAnalysis}
+				<div class="mb-2">
+					<ActiveAnalysisBadge activeAnalysis={message.activeAnalysis} showDetails={true} />
+				</div>
+			{/if}
+
+			{#if executionPlanData && executionPlanData.execution_plan}
+				<div class="mb-3">
+					<ExecutionPlanDisplay
+						executionPlan={executionPlanData.execution_plan}
+						executedTools={executionPlanData.executed_tools}
+						showDetails={true}
+					/>
+				</div>
+			{/if}
+
 			{#if message.files?.length}
 				<div class="flex h-fit flex-wrap gap-x-5 gap-y-2">
 					{#each message.files as file (file.value)}

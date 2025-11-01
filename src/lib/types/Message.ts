@@ -24,6 +24,16 @@ export type Message = Partial<Timestamps> & {
 		provider?: InferenceProvider;
 	};
 
+	// RAGRefine active analysis context
+	activeAnalysis?: {
+		tool_name: string;
+		tool_display_name?: string;
+		dataset_path: string;
+		status: "executing" | "completed" | "failed";
+		started_at?: string | null;
+		results?: any;
+	};
+
 	// needed for conversation trees
 	ancestors?: Message["id"][];
 

@@ -26,6 +26,7 @@
 	import "katex/dist/katex.min.css";
 	import { updateDebouncer } from "$lib/utils/updates.js";
 	import SubscribeModal from "$lib/components/SubscribeModal.svelte";
+	import ApprovalRequestModal, { type ApprovalRequest } from "$lib/components/chat/ApprovalRequestModal.svelte";
 	import { loading } from "$lib/stores/loading.js";
 	import { requireAuthUser } from "$lib/utils/auth.js";
 
@@ -34,6 +35,9 @@
 	let pending = $state(false);
 	let initialRun = true;
 	let showSubscribeModal = $state(false);
+	let approvalRequest: ApprovalRequest | null = $state(null);
+	let showApprovalModal = $state(false);
+	let pendingApprovalResolve: ((approved: boolean) => void) | null = $state(null);
 
 	let files: File[] = $state([]);
 
@@ -322,6 +326,25 @@
 						route: update.route,
 						model: update.model,
 					};
+				} else if (update.type === MessageUpdateType.ActiveAnalysis) {
+					// RAGRefine active analysis 업데이트 처리
+					messageToWriteTo.activeAnalysis = update.activeAnalysis;
+				} else if (update.type === MessageUpdateType.ApprovalRequest) {
+					// 승인 요청 처리
+					approvalRequest = {
+						tool_name: update.tool_name,
+						tool_display_name: update.tool_display_name,
+						tool_args: update.tool_args,
+						dataset_path: update.dataset_path,
+						estimated_time: update.estimated_time,
+						question: update.question,
+						extras: update.extras,
+					};
+					showApprovalModal = true;
+					
+					// 승인/거부 응답을 기다림 (비동기 처리 필요)
+					// 실제로는 백엔드로 승인 응답을 보내야 함
+					// 여기서는 모달 닫힐 때까지 대기
 				}
 			}
 		} catch (err) {
@@ -515,3 +538,16 @@
 {#if showSubscribeModal}
 	<SubscribeModal close={() => (showSubscribeModal = false)} />
 {/if}
+
+<ApprovalRequestModal
+	bind:open={showApprovalModal}
+	{request: approvalRequest}
+	onapproved={(e) => {
+		// 승인 응답을 백엔드로 전송해야 함
+		// 여기서는 일단 처리하고, 실제 API 호출은 백엔드 연동 시 구현
+		if (pendingApprovalResolve) {
+			pendingApprovalResolve(e.detail.approved);
+			pendingApprovalResolve = null;
+		}
+	}}
+/>
